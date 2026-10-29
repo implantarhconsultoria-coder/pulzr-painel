@@ -8,6 +8,12 @@
 <meta name="theme-color" content="#050505">
 <title>Painel de feedbacks · PULZR</title>
 <link rel="icon" href="img/apontando.webp">
+<link rel="manifest" href="painel.webmanifest">
+<link rel="apple-touch-icon" href="img/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Feedbacks">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@700;800&family=Manrope:wght@400;600;700;800&display=swap" rel="stylesheet">
 <style>
 :root{--bg:#050505;--card:#0E100E;--card2:#141714;--line:#232822;--lime:#B6FF00;--soft:rgba(182,255,0,.45);--text:#fff;--sub:#C9CDC6;--muted:#8C9289;--red:#FF5A5A;
@@ -60,8 +66,10 @@ button:focus-visible{outline:3px solid #fff;outline-offset:2px}
   <section class="bar">
     <span class="label">Período</span><div class="chips" id="periods"></div>
     <span class="label">Tipo</span><div class="chips" id="kinds"></div>
-    <button class="go" type="button" id="load" style="margin-left:auto">ATUALIZAR ⚡</button>
+    <button class="go ghost" type="button" id="notify" style="margin-left:auto" hidden>🔔 ATIVAR AVISOS</button>
+    <button class="go" type="button" id="load">ATUALIZAR ⚡</button>
   </section>
+  <p class="meta" id="pushInfo" hidden></p>
   <div id="out"></div>
 </main>
 <script>
@@ -75,8 +83,8 @@ const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&g
 let key='';try{key=new URLSearchParams(location.hash.slice(1)).get('admin')||localStorage.getItem('pulzr-fb-admin')||'';}catch(_){}
 if(location.hash.includes('admin=')){try{localStorage.setItem('pulzr-fb-admin',key);}catch(_){}history.replaceState(null,'',location.pathname);}
 let days=30,kind='';
-$('publicLink').textContent=location.origin+'/';
-$('copyLink').onclick=()=>navigator.clipboard.writeText(location.origin+'/').then(()=>{$('copyLink').textContent='COPIADO ✓';});
+$('publicLink').textContent=new URL('./',location.href).href;
+$('copyLink').onclick=()=>navigator.clipboard.writeText(new URL('./',location.href).href).then(()=>{$('copyLink').textContent='COPIADO ✓';});
 function chips(el,items,cur,set){el.innerHTML='';items.forEach(([v,l])=>{const b=document.createElement('button');b.type='button';b.className='chip';b.textContent=l;b.setAttribute('aria-pressed',String(v===cur));b.onclick=()=>{set(v);renderChips();load();};el.appendChild(b);});}
 function renderChips(){chips($('periods'),PERIODS,days,v=>days=v);chips($('kinds'),KINDS,kind,v=>kind=v);}
 renderChips();
@@ -123,6 +131,34 @@ function render(rows){
   $('copy').onclick=()=>navigator.clipboard.writeText(text).then(()=>{$('copied').hidden=false;},()=>{const g=document.createRange();g.selectNodeContents($('txt'));const s=getSelection();s.removeAllRanges();s.addRange(g);});
 }
 load();
+// App instalável + avisos (push) de feedback novo.
+const b64=s=>{const p='='.repeat((4-s.length%4)%4),r=atob((s+p).replace(/-/g,'+').replace(/_/g,'/'));return Uint8Array.from(r,c=>c.charCodeAt(0));};
+const info=t=>{$('pushInfo').hidden=!t;$('pushInfo').textContent=t||'';};
+async function pushSetup(){
+  if(!('serviceWorker' in navigator))return;
+  const reg=await navigator.serviceWorker.register('sw.js');
+  navigator.serviceWorker.addEventListener('message',e=>{if(e.data==='reload')load();});
+  if(!('PushManager' in window)||!('Notification' in window)){
+    if(/iphone|ipad/i.test(navigator.userAgent)&&!navigator.standalone)info('No iPhone: toque em Compartilhar → "Adicionar à Tela de Início", abra pelo ícone e ative os avisos.');
+    return;}
+  const sub=await reg.pushManager.getSubscription();
+  const btn=$('notify');
+  if(sub&&Notification.permission==='granted'){btn.hidden=false;btn.textContent='🔔 AVISOS LIGADOS';btn.onclick=()=>send(sub,'test');save(sub);return;}
+  btn.hidden=false;
+  btn.onclick=async()=>{
+    if(!key){info('Abra o painel pelo link com a sua chave antes de ativar.');return;}
+    const perm=await Notification.requestPermission();
+    if(perm!=='granted'){info('Os avisos foram bloqueados. Libere nas configurações do navegador para este site.');return;}
+    try{const v=await (await fetch(FN+'?action=vapid',{headers:{'x-pulzr-admin':key}})).json();
+      const s=await reg.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:b64(v.key)});
+      await save(s);btn.textContent='🔔 AVISOS LIGADOS';info('Pronto! Mandei um aviso de teste.');send(s,'test');
+      btn.onclick=()=>send(s,'test');}
+    catch(_){info('Não deu para ativar os avisos agora. Tente de novo.');}
+  };
+}
+function save(s){return send(s,'subscribe');}
+function send(s,action){return fetch(FN+'?action='+action,{method:'POST',headers:{'x-pulzr-admin':key,'content-type':'application/json'},body:JSON.stringify(s)}).catch(()=>{});}
+pushSetup().catch(()=>{});
 })();
 </script>
 </body>
