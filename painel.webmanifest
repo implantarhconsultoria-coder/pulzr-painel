@@ -3,7 +3,6 @@
   "short_name": "Feedbacks",
   "description": "Painel de feedbacks do PULZR",
   "id": "painel.html",
-  "start_url": "painel.html",
   "scope": "./",
   "display": "standalone",
   "orientation": "portrait",

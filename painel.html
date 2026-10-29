@@ -81,7 +81,9 @@ const LABEL={erro:'ERRO',sugestao:'IDEIA',elogio:'ELOGIO',outro:'OUTRO'};
 const $=id=>document.getElementById(id);
 const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 let key='';try{key=new URLSearchParams(location.hash.slice(1)).get('admin')||localStorage.getItem('pulzr-fb-admin')||'';}catch(_){}
-if(location.hash.includes('admin=')){try{localStorage.setItem('pulzr-fb-admin',key);}catch(_){}history.replaceState(null,'',location.pathname);}
+// A chave fica no endereço para o ícone da tela inicial (iPhone guarda o app separado do Safari) já abrir logado.
+if(location.hash.includes('admin=')){try{localStorage.setItem('pulzr-fb-admin',key);}catch(_){}}
+else if(key){history.replaceState(null,'',location.pathname+'#admin='+encodeURIComponent(key));}
 let days=30,kind='';
 $('publicLink').textContent=new URL('./',location.href).href;
 $('copyLink').onclick=()=>navigator.clipboard.writeText(new URL('./',location.href).href).then(()=>{$('copyLink').textContent='COPIADO ✓';});
