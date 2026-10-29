@@ -93,7 +93,10 @@ renderChips();
 function state(img,t,p){$('out').innerHTML=`<div class="state"><img src="img/${img}.webp" alt=""><div><h2>${t}</h2><p>${p}</p></div></div>`;}
 const fmt=d=>new Date(d).toLocaleString('pt-BR',{timeZone:'America/Sao_Paulo',day:'2-digit',month:'2-digit',year:'2-digit',hour:'2-digit',minute:'2-digit'});
 async function load(){
-  if(!key){state('bracos-cruzados','Acesso restrito','Abra este painel pelo link com a sua chave de acesso.');return;}
+  if(!key){state('bracos-cruzados','Acesso restrito','Cole a sua chave de acesso para entrar.');
+    $('out').querySelector('.state div').insertAdjacentHTML('beforeend','<form id="kf" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px"><input id="ki" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="Chave de acesso" style="flex:1;min-width:160px;font:15px var(--body);padding:10px 12px;border-radius:12px;border:1px solid var(--line);background:var(--card2);color:var(--text)"><button class="go" type="submit">ENTRAR</button></form>');
+    $('kf').onsubmit=e=>{e.preventDefault();const v=$('ki').value.trim().replace(/^.*admin=/,'');if(!v)return;key=decodeURIComponent(v);try{localStorage.setItem('pulzr-fb-admin',key);}catch(_){}history.replaceState(null,'',location.pathname+'#admin='+encodeURIComponent(key));info('');load();};
+    return;}
   $('load').disabled=true;$('load').textContent='CARREGANDO…';
   try{
     const r=await fetch(FN+'?days='+days+'&kind='+kind,{headers:{'x-pulzr-admin':key}});
@@ -148,7 +151,7 @@ async function pushSetup(){
   if(sub&&Notification.permission==='granted'){btn.hidden=false;btn.textContent='🔔 AVISOS LIGADOS';btn.onclick=()=>send(sub,'test');save(sub);return;}
   btn.hidden=false;
   btn.onclick=async()=>{
-    if(!key){info('Abra o painel pelo link com a sua chave antes de ativar.');return;}
+    if(!key){info('Entre com a sua chave primeiro (campo abaixo) e depois ative os avisos.');return;}
     const perm=await Notification.requestPermission();
     if(perm!=='granted'){info('Os avisos foram bloqueados. Libere nas configurações do navegador para este site.');return;}
     try{const v=await (await fetch(FN+'?action=vapid',{headers:{'x-pulzr-admin':key}})).json();
