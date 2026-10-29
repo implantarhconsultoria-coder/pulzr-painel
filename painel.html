@@ -66,6 +66,7 @@ button:focus-visible{outline:3px solid #fff;outline-offset:2px}
   <section class="bar">
     <span class="label">Período</span><div class="chips" id="periods"></div>
     <span class="label">Tipo</span><div class="chips" id="kinds"></div>
+    <button class="chip" type="button" id="archTab" aria-pressed="false">📦 Arquivados</button>
     <button class="go ghost" type="button" id="notify" style="margin-left:auto" hidden>🔔 ATIVAR AVISOS</button>
     <button class="go" type="button" id="load">ATUALIZAR ⚡</button>
   </section>
@@ -84,7 +85,7 @@ let key='';try{key=new URLSearchParams(location.hash.slice(1)).get('admin')||loc
 // A chave fica no endereço para o ícone da tela inicial (iPhone guarda o app separado do Safari) já abrir logado.
 if(location.hash.includes('admin=')){try{localStorage.setItem('pulzr-fb-admin',key);}catch(_){}}
 else if(key){history.replaceState(null,'',location.pathname+'#admin='+encodeURIComponent(key));}
-let days=30,kind='';
+let days=30,kind='',arch=false;
 $('publicLink').textContent=new URL('./',location.href).href;
 $('copyLink').onclick=()=>navigator.clipboard.writeText(new URL('./',location.href).href).then(()=>{$('copyLink').textContent='COPIADO ✓';});
 function chips(el,items,cur,set){el.innerHTML='';items.forEach(([v,l])=>{const b=document.createElement('button');b.type='button';b.className='chip';b.textContent=l;b.setAttribute('aria-pressed',String(v===cur));b.onclick=()=>{set(v);renderChips();load();};el.appendChild(b);});}
@@ -99,7 +100,7 @@ async function load(){
     return;}
   $('load').disabled=true;$('load').textContent='CARREGANDO…';
   try{
-    const r=await fetch(FN+'?days='+days+'&kind='+kind,{headers:{'x-pulzr-admin':key}});
+    const r=await fetch(FN+'?days='+days+'&kind='+kind+(arch?'&archived=1':''),{headers:{'x-pulzr-admin':key}});
     if(r.status===401){try{localStorage.removeItem('pulzr-fb-admin');}catch(_){}key='';state('bracos-cruzados','Chave inválida','A chave de acesso não confere. Abra o painel pelo link completo de novo.');return;}
     const d=await r.json();if(!r.ok)throw new Error(d.error||'erro');
     render(d.rows||[]);
@@ -107,6 +108,11 @@ async function load(){
   finally{$('load').disabled=false;$('load').textContent='ATUALIZAR ⚡';}
 }
 $('load').onclick=load;
+$('archTab').onclick=()=>{arch=!arch;$('archTab').setAttribute('aria-pressed',String(arch));load();};
+async function archive(ids,archived){
+  const r=await fetch(FN+'?action=archive',{method:'POST',headers:{'x-pulzr-admin':key,'content-type':'application/json'},body:JSON.stringify({ids,archived})}).catch(()=>null);
+  if(r&&r.ok)load();else alert('Não deu para arquivar agora. Tente de novo.');
+}
 function report(rows){
   const c=k=>rows.filter(r=>r.kind===k).length;
   const lines=['# Relatório de feedbacks PULZR',`Período: ${days?'últimos '+days+' dias':'todo o período'} · Gerado em ${fmt(new Date())}`,
@@ -121,18 +127,20 @@ function report(rows){
   return lines.join('\n');
 }
 function render(rows){
-  if(!rows.length){state('joinha','Nada por aqui ainda','Nenhum feedback nesse período. Mande o link para o pessoal!');return;}
+  if(!rows.length){arch?state('joinha','Nenhum arquivado','Os feedbacks que você arquivar aparecem aqui.'):state('joinha','Tudo em dia','Nenhum feedback pendente nesse período.');return;}
   const c=k=>rows.filter(r=>r.kind===k).length;
   const text=report(rows);
   $('out').innerHTML=`<div class="tiles">${[['t','Total',rows.length],['','Erros',c('erro')],['','Ideias',c('sugestao')],['','Elogios',c('elogio')],['','Outros',c('outro')]].map(([cl,l,n])=>`<div class="tile ${cl}"><b>${n}</b><span>${l}</span></div>`).join('')}</div>
    <section class="report" style="margin-top:16px"><div class="label" style="color:var(--lime)">Relatório para colar no Claude</div><pre id="txt"></pre>
-   <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><button class="go" type="button" id="copy">COPIAR RELATÓRIO</button><span class="ok" id="copied" hidden>Copiado! Cole na conversa com o Claude.</span></div></section>
+   <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><button class="go" type="button" id="copy">COPIAR RELATÓRIO</button><span class="ok" id="copied" hidden>Copiado! Cole na conversa com o Claude.</span><button class="go ghost" type="button" id="archAll" style="margin-left:auto">${arch?'↩ DESARQUIVAR TODOS':'📦 ARQUIVAR TODOS ('+rows.length+')'}</button></div></section>
    <div style="display:flex;flex-direction:column;gap:10px;margin-top:16px">${rows.map(r=>`<article class="fb">
     <header><span class="tag ${esc(r.kind)}">${LABEL[r.kind]||'OUTRO'}</span><span class="who">${esc(r.name||'Sem nome')}</span>${r.username?`<span class="meta">@${esc(r.username)}</span>`:''}${r.email?`<span class="meta">${esc(r.email)}</span>`:''}${r.phone?`<span class="meta">${esc(r.phone)}</span>`:''}</header>
     ${r.message?`<p class="msg">${esc(r.message)}</p>`:''}
     ${r.files.length?`<div class="files">${r.files.map(f=>!f.url?'<span class="meta">anexo indisponível</span>':f.type==='audio'?`<audio controls preload="none" src="${esc(f.url)}"></audio>`:`<a href="${esc(f.url)}" target="_blank" rel="noopener"><img src="${esc(f.url)}" alt="Print enviado" loading="lazy"></a>`).join('')}</div>`:''}
-    <div class="meta">#${r.id} · ${fmt(r.created_at)} · ${r.source==='link'?'link público':'app'}${r.platform?' · '+esc(r.platform):''}${r.app_version?' · v'+esc(r.app_version):''}</div></article>`).join('')}</div>`;
+    <div style="display:flex;gap:8px;align-items:center;justify-content:space-between;flex-wrap:wrap"><div class="meta">#${r.id} · ${fmt(r.created_at)} · ${r.source==='link'?'link público':'app'}${r.platform?' · '+esc(r.platform):''}${r.app_version?' · v'+esc(r.app_version):''}</div><button class="chip" type="button" data-arch="${r.id}">${arch?'↩ Desarquivar':'📦 Arquivar'}</button></div></article>`).join('')}</div>`;
   $('txt').textContent=text;
+  $('archAll').onclick=()=>{if(confirm(arch?'Desarquivar todos desta lista?':'Arquivar os '+rows.length+' feedbacks desta lista?'))archive(rows.map(r=>r.id),!arch);};
+  $('out').querySelectorAll('[data-arch]').forEach(b=>b.onclick=()=>{b.disabled=true;archive([Number(b.dataset.arch)],!arch);});
   $('copy').onclick=()=>navigator.clipboard.writeText(text).then(()=>{$('copied').hidden=false;},()=>{const g=document.createRange();g.selectNodeContents($('txt'));const s=getSelection();s.removeAllRanges();s.addRange(g);});
 }
 load();
